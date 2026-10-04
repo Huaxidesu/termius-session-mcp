@@ -1,0 +1,6 @@
+node_modules/
+coverage/
+.runtime/
+*.log
+*.local.json
+*.lnk

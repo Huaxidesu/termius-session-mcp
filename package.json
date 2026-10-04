@@ -1,0 +1,10 @@
+{
+  "name": "termius-session-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Consent-first MCP for a user-selected live Termius session. No vault access, no TCP debugger.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "scripts": { "test": "node --test", "start": "node src/client.js", "launch": "node src/launcher.js" }
+}
