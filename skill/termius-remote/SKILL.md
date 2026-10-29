@@ -19,10 +19,13 @@ agent_created: true
 
 1. 环境变量 `TERMIUS_MCP_REPO`
 2. 本技能目录的上两级（技能若位于 `<仓库>/skill/termius-remote/`，仓库即在此）
-3. 常见位置：`C:\Users\<用户>\WorkBuddy\mcp-tools\termius-session-mcp`
-4. 以上都不成立时，直接问用户仓库在哪
+3. **本机默认部署路径**：`C:\Users\huaxi\WorkBuddy\mcp-tools\termius-session-mcp`
+4. 开发副本：`D:\Develop\Ai\MCP\termius-session-mcp`
+5. 以上都不成立时，直接问用户仓库在哪
 
 确认标志：该目录下同时存在 `AGENT.md`、`src/client.js`、`probe.js`。
+
+找到后，**当前生效的是哪个副本**取决于 MCP 配置里 `client.js` 的路径。不确定就先看一眼 MCP 配置（`~/.workbuddy/mcp.json` 或 `~/.workbuddy-ai/mcp.json`）再判断。
 
 ## 然后读完 AGENT.md
 
