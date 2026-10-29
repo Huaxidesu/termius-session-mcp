@@ -29,27 +29,24 @@ function fixture() {
   return { sandbox, document, terminal, mediator, nodes, button, writes, outputHandlers, tick() { timers.forEach(fn => fn()); }, call: sandbox.bridge };
 }
 const flush = () => new Promise(r => setImmediate(r));
-test('renderer starts off; synthetic click cannot enable; only selected-session output is captured', async () => {
+test('renderer starts off; synthetic click cannot enable; auto-approve sends immediately', async () => {
   const f = fixture(); assert.equal((await f.call('status')).enabled, false); assert.equal(f.outputHandlers.size, 0);
-  f.button('Turn MCP on').event('click', false); await flush(); assert.equal((await f.call('status')).enabled, false);
+  f.button('开启 MCP').event('click', false); await flush(); assert.equal((await f.call('status')).enabled, false);
   await assert.rejects(f.call('enable'));
-  f.button('Turn MCP on').event('click'); await flush(); f.button('Share visible terminal').event('click'); await flush();
+  f.button('开启 MCP').event('click'); await flush(); f.button('共享当前终端').event('click'); await flush();
   assert.equal(f.outputHandlers.size, 1); const [s] = await f.call('sessions'); assert.notEqual(s.id, 'private-real-terminal-id');
-  const pending = f.call('write', { session: s.id, text: 'echo MOCK_ONLY\n' }); await flush();
-  f.button('Approve once').event('click', false); assert.equal(f.writes.length, 0);
-  const checkbox = f.nodes.find(n => n.tag === 'input'); checkbox.checked = true; checkbox.event('change'); await flush();
-  f.button('Approve once').event('click'); await pending; assert.deepEqual(f.writes, ['echo MOCK_ONLY\n']);
-  f.button('Turn MCP off').event('click'); await flush(); assert.equal(f.outputHandlers.size, 0); assert.equal((await f.call('sessions')).length, 0);
+  const result = await f.call('write', { session: s.id, text: 'echo MOCK_ONLY\n' });
+  assert.equal(result.sent, true); assert.equal(result.auto, true); assert.deepEqual(f.writes, ['echo MOCK_ONLY\n']);
+  f.button('关闭 MCP').event('click'); await flush(); assert.equal(f.outputHandlers.size, 0); assert.equal((await f.call('sessions')).length, 0);
 });
-test('renderer escapes read controls; returns only user-edited preview', async () => {
-  const f = fixture(); f.button('Turn MCP on').event('click'); await flush(); f.button('Share visible terminal').event('click'); await flush();
-  for (const cb of f.outputHandlers) cb('FAKE_TOKEN=example\x1b[31m');
-  const [s] = await f.call('sessions'); const pending = f.call('read', { session: s.id }); await flush();
-  const preview = f.nodes.find(n => n.tag === 'textarea'); assert.match(preview.value,/\\u001b/); preview.value = '[redacted by user]';
-  const checkbox = f.nodes.find(n => n.tag === 'input'); checkbox.checked = true; checkbox.event('change'); await flush();
-  f.button('Approve once').event('click'); assert.equal((await pending).text, '[redacted by user]');
+test('renderer returns buffered output to the client without an approval step', async () => {
+  const f = fixture(); f.button('开启 MCP').event('click'); await flush(); f.button('共享当前终端').event('click'); await flush();
+  for (const cb of f.outputHandlers) cb('FAKE_TOKEN=example');
+  const [s] = await f.call('sessions');
+  const out = await f.call('read', { session: s.id });
+  assert.equal(out.text, 'FAKE_TOKEN=example'); assert.equal(out.truncated, false); assert.equal(out.auto, true);
 });
 test('renderer revokes when same terminal gets a new connection object', async () => {
-  const f = fixture(); f.button('Turn MCP on').event('click'); await flush(); f.button('Share visible terminal').event('click'); await flush();
+  const f = fixture(); f.button('开启 MCP').event('click'); await flush(); f.button('共享当前终端').event('click'); await flush();
   f.mediator._currentConnection = {}; f.tick(); await flush(); assert.equal((await f.call('sessions')).length, 0); assert.equal(f.outputHandlers.size, 0);
 });

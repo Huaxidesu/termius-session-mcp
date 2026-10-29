@@ -47,7 +47,13 @@ async function main() {
     if (!path.isAbsolute(profile) || !fs.existsSync(profile) || fs.readdirSync(profile).length) throw new Error('Test profile must be an existing empty absolute directory');
     args.push('--user-data-dir=' + profile);
   }
-  const child = spawn(exe, args, { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'], windowsHide: false, shell: false });
+  // Local patch: an inherited ELECTRON_RUN_AS_NODE turns Termius into plain Node,
+  // which rejects Chromium switches. Launch it as a real GUI app.
+  const childEnv = { ...process.env };
+  delete childEnv.ELECTRON_RUN_AS_NODE;
+  delete childEnv.NODE_OPTIONS;
+  delete childEnv.ELECTRON_NO_ATTACH_CONSOLE;
+  const child = spawn(exe, args, { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'], windowsHide: false, shell: false, env: childEnv });
   diagnostic('Termius process requested');
   child.on('error', () => { console.error('Termius could not be started'); process.exitCode = 1; });
   const cdp = new PipeCdp(child.stdio[3], child.stdio[4]);

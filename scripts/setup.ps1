@@ -22,7 +22,14 @@ foreach ($principal in @($sid, (New-Object Security.Principal.SecurityIdentifier
   $rule = New-Object Security.AccessControl.FileSystemAccessRule($principal, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
   $acl.AddAccessRule($rule)
 }
-Set-Acl -LiteralPath $StateDirectory -AclObject $acl
+try {
+  Set-Acl -LiteralPath $StateDirectory -AclObject $acl
+} catch {
+  # Local patch: SetOwner needs SeRestorePrivilege, unavailable in restricted shells.
+  # Fall back to granting only this account + SYSTEM without changing the owner.
+  & icacls $StateDirectory /inheritance:r /grant:r "$($sid.Value):(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" | Out-Null
+  if ($LASTEXITCODE -ne 0) { Write-Warning 'Could not restrict the state directory ACL; it inherits from LOCALAPPDATA.' }
+}
 New-Item -ItemType Directory -Force -Path $LauncherDirectory | Out-Null
 $launcherPath = Join-Path $LauncherDirectory 'Termius with Session MCP.lnk'
 if (Test-Path -LiteralPath $launcherPath) { throw 'Launcher already exists; refusing to overwrite' }

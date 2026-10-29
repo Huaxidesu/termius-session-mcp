@@ -8,8 +8,8 @@ An unofficial, experimental Windows integration that lets an MCP client work wit
 
 - Adds a compact **MCP** button below **Logs**, opening controls on demand. When the sidebar is hidden, the button moves to the top bar. Approval requests open the controls automatically.
 - Starts **off** on every launch or renderer reload. Only a real UI interaction can enable sharing.
-- Shares one visible terminal for ten minutes. Split panes and ambiguous terminal selection fail closed.
-- Requires a separate in-app approval for **every write** and **every output release**. Read previews can be edited to remove secrets.
+- Shares one visible terminal for **24 hours** per grant. Split panes and ambiguous terminal selection fail closed.
+- **This local build auto-approves.** Writes execute and reads are released without an in-app confirmation step. See [Local modifications](#local-modifications-本fork的改动).
 - Collects only output produced after sharing. It never reads earlier scrollback or subscribes to other terminals.
 - Turning MCP off revokes the session, rejects pending requests, clears buffered output and disposes subscriptions. It cannot undo a command already sent.
 - Uses an inherited private Chromium debugging **pipe**, never a TCP debugging port. Application archives, signatures, encryption and integrity fuses remain unchanged.
@@ -75,6 +75,23 @@ Tests cover the consent policy, revocation, expiry, changing targets, snapshot i
 ## Removal and recovery
 
 Exit Termius normally and remove the MCP client entry and the added shortcut. Launch Termius with its original shortcut; the panel will not be present. No vendor files need restoring. The private state directory can be removed after the launcher exits. A crashed launcher can leave `endpoint.json`; first verify its recorded launcher PID is no longer running before removing that one stale file. Do not remove state belonging to a live launcher.
+
+## Local modifications 本 fork 的改动
+
+This is a personal fork. It differs from upstream in the following ways; everything else is unchanged.
+
+| 改动 | 说明 | 位置 |
+|---|---|---|
+| 自动批准 | `autoApprove` 跳过每次写入/读取的审批框，命令直接执行 | `src/policy.js` `request()` |
+| 授权 24 小时 | 共享时长从 10 分钟改为 24 小时，可由 `grantMs` 参数覆盖 | `src/policy.js` `createPolicy()` |
+| 界面汉化 | 面板按钮、状态、错误提示改为中文；`Logs` 按钮识别兼容中文「日志」 | `src/renderer.js` |
+| 事件 API 兼容 | `.event()` 同时接受裸解绑函数与 `{ dispose() }`；`_onExit` 在 Termius 10.x 已移除，降级为可选 | `src/renderer.js` `subscribe()` |
+| 启动环境修正 | spawn Termius 时剔除 `ELECTRON_RUN_AS_NODE` / `NODE_OPTIONS`，否则 Electron 退化成纯 Node 并拒绝 `--remote-debugging-pipe` | `src/launcher.js` |
+| ACL 回退 | `Set-Acl` 需要 SeRestorePrivilege，失败时改用 `icacls` 只授权当前用户与 SYSTEM | `scripts/setup.ps1` |
+| 新增探针 | 命令行调用 `status` / `sessions` / `--run "命令"`，MCP 未加载时兜底 | `probe.js` |
+| 新增重建脚本 | 仓库移动路径后重建快捷方式与客户端配置 | `scripts/rebuild-shortcuts.ps1` |
+
+**安全影响**：移除审批门意味着 AI 发来的任何命令都会立即在共享终端执行，读取的输出也会立即释放，不再有人工拦截。吊销手段仅剩：撤回授权、切换标签页、断开连接、窗口不可见、24 小时到期。上游 README 中关于“每次操作都需人工确认”的承诺在此 fork 中不再成立。
 
 ## License and attribution
 

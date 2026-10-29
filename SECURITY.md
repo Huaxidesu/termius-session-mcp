@@ -1,5 +1,13 @@
 # Security model
 
+> **⚠️ 本 fork 关闭了人工审批环节（LOCAL FORK — APPROVAL GATE DISABLED）**
+>
+> `autoApprove: true` 使 `write` 立即执行、`read` 立即释放，**不再有应用内确认**。因此本文件下文所有以“需要用户批准”为前提的保护性描述（例如 “until a reviewed snapshot is approved”、“each sensitive operation needs human approval”、“approval must come from the user”）**在本 fork 中不再成立**。
+>
+> 仍然有效的保护：授权 24 小时到期、切换标签页即撤销、断开连接即撤销、文档不可见即撤销、只认单一可见终端、控制字符拒绝、8192 字符读取上限、32KB 输出缓冲上限、随机 pipe 名与 64 位十六进制 token 认证。
+>
+> 仍然成立的风险，且被放大：共享期间 AI 可以执行该 shell 账号能做的任何事，包括删除、提权失败后的试探、外联下载；读取的输出会原样进入模型上下文，本项目不做敏感信息检测。
+
 This is experimental software. Do not equate passing tests with an independent security audit.
 
 ## Assets and trust

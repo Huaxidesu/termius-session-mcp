@@ -23,7 +23,7 @@ test('write executes once only after trusted approval and exact target validatio
 });
 test('disable cancels queued commands, disposes output and clears grants', async () => {
   const f = fixture(), id = f.grant(), r = f.p.request('write', { session: id, text: 'echo test' });
-  f.p.disable(); await assert.rejects(r, /revoked/); assert.equal(f.disposed, 1);
+  f.p.disable(); await assert.rejects(r, /撤销/); assert.equal(f.disposed, 1);
   f.p.decide(f.approvals[0].id, true, true); assert.equal(f.writes.length, 0); assert.deepEqual(f.p.sessions(), []);
 });
 test('session replacement and expiry cannot execute an approved command', async () => {
@@ -43,17 +43,17 @@ test('output arriving during approval is not silently included', async () => {
 });
 test('denied reads are discarded; disabled capture is ignored', async () => {
   const f = fixture(), id = f.grant(); f.emit('secret'); const r = f.p.request('read', { session: id });
-  f.p.decide(f.approvals[0].id, false, true); await assert.rejects(r, /Denied/);
+  f.p.decide(f.approvals[0].id, false, true); await assert.rejects(r, /拒绝/);
   const r2 = f.p.request('read', { session: id }); assert.equal(f.approvals[1].text, ''); f.p.disable(); await assert.rejects(r2);
   f.emit('after-off'); const newId = f.grant(); const r3 = f.p.request('read', { session: newId }); assert.equal(f.approvals[2].text, ''); f.p.disable(); await assert.rejects(r3);
 });
 test('control sequences and oversized input refused; only one pending request', async () => {
   const f = fixture(), id = f.grant();
   for (const text of ['\x1b[31m', '\r', '\x03', '\u202efoo', 'x'.repeat(4097)]) assert.throws(() => f.p.request('write', { session: id, text }));
-  const r = f.p.request('write', { session: id, text: 'okay' }); assert.throws(() => f.p.request('read', { session: id }), /awaiting approval/); f.p.disable(); await assert.rejects(r);
+  const r = f.p.request('write', { session: id, text: 'okay' }); assert.throws(() => f.p.request('read', { session: id }), /等待审批/); f.p.disable(); await assert.rejects(r);
 });
-test('output is bounded and session expires after ten minutes', async () => {
+test('output is bounded and session expires after 24 hours', async () => {
   const f = fixture(), id = f.grant(); f.emit('x'.repeat(100000)); const r = f.p.request('read', { session: id });
   assert.equal(f.approvals[0].text.length, 8192); assert.equal(f.approvals[0].truncated, true); f.p.disable(); await assert.rejects(r);
-  f.grant(); f.advance(600001); f.p.tick(); assert.deepEqual(f.p.sessions(), []);
+  f.grant(); f.advance(86_400_001); f.p.tick(); assert.deepEqual(f.p.sessions(), []);
 });

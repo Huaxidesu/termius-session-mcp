@@ -12,15 +12,16 @@ export function installRenderer(createPolicy, bridgeKey) {
   layout.textContent = `#mcp-launcher{display:flex;align-items:center;gap:10px;width:100%;margin:0;padding:10px 12px;text-align:left;font:600 13px system-ui;background:transparent;border:1px solid transparent;border-radius:8px}#mcp-launcher:hover,#mcp-launcher[aria-expanded="true"]{background:#394054;border-color:#58627a}#mcp-launcher:focus-visible,button:focus-visible{outline:2px solid #59b6ff;outline-offset:2px}#mcp-dot{width:8px;height:8px;border-radius:50%;background:#8992a5;flex:none}#mcp-dot[data-state="on"]{background:#54d9a3}#mcp-dot[data-state="pending"]{background:#ffcc66}section{position:fixed;box-sizing:border-box;width:min(340px,calc(100vw - 24px));max-height:calc(100vh - 90px);overflow:auto}section[hidden]{display:none}#mcp-close{float:right;margin:-5px -4px 0 6px;background:transparent;border:0;font-size:18px}h2{padding-top:3px}`;
   root.append(layout);
   const launcherButton = document.createElement('button'); launcherButton.id = 'mcp-launcher';
-  launcherButton.setAttribute('aria-label', 'Termius MCP controls'); launcherButton.setAttribute('aria-expanded', 'false'); launcherButton.setAttribute('aria-controls', 'mcp-controls');
+  launcherButton.setAttribute('aria-label', 'Termius MCP 控制面板'); launcherButton.setAttribute('aria-expanded', 'false'); launcherButton.setAttribute('aria-controls', 'mcp-controls');
   const dot = document.createElement('span'); dot.id = 'mcp-dot'; dot.setAttribute('aria-hidden', 'true'); launcherButton.append(dot);
   const launcherLabel = document.createElement('span'); launcherLabel.textContent = 'MCP · Off'; launcherButton.append(launcherLabel); root.append(launcherButton);
   const panel = document.createElement('section'); panel.id = 'mcp-controls'; panel.hidden = true; root.append(panel);
   function position() {
-    // Inspect navigation button labels only, never terminal text or scrollback.
+    // 只匹配侧边栏「Logs / 日志」按钮的位置，不读取终端内容。兼容中英文界面。
     const logs = [...document.querySelectorAll('button,[role="button"]')].find(e => {
       const r = e.getBoundingClientRect();
-      return r.left >= 0 && r.left < 120 && r.width > 25 && r.width < 300 && r.height > 15 && e.textContent?.trim() === 'Logs';
+      const label = e.textContent?.trim();
+      return r.left >= 0 && r.left < 120 && r.width > 25 && r.width < 300 && r.height > 15 && (label === 'Logs' || label === '日志');
     });
     const r = logs?.getBoundingClientRect();
     const width = window.innerWidth || 1280, height = window.innerHeight || 800;
@@ -34,23 +35,23 @@ export function installRenderer(createPolicy, bridgeKey) {
   function showPanel(open) { panel.hidden = !open; launcherButton.setAttribute('aria-expanded', String(open)); if (open) position(); }
   launcherButton.addEventListener('click', e => { if (e.isTrusted) showPanel(panel.hidden); });
   const el = (tag, text, parent = panel) => { const e = document.createElement(tag); if (text) e.textContent = text; parent.append(e); return e; };
-  const close = el('button', '×'); close.id = 'mcp-close'; close.setAttribute('aria-label', 'Close MCP controls');
+  const close = el('button', '×'); close.id = 'mcp-close'; close.setAttribute('aria-label', '关闭 MCP 控制面板');
   close.addEventListener('click', e => { if (e.isTrusted) { showPanel(false); launcherButton.focus?.(); } });
   root.addEventListener('keydown', e => { if (e.isTrusted && e.key === 'Escape') { showPanel(false); launcherButton.focus?.(); } });
-  el('h2', 'Termius Session MCP');
-  const status = el('p', 'MCP is off');
-  const toggle = el('button', 'Turn MCP on');
-  const share = el('button', 'Share visible terminal');
-  const revoke = el('button', 'Revoke');
-  el('small', 'One visible terminal • 10-minute grant • approve every write and output release');
-  const info = el('p', 'Credentials stay in Termius. Terminal output can still contain secrets.');
+  el('h2', 'Termius 会话 MCP');
+  const status = el('p', 'MCP 已关闭');
+  const toggle = el('button', '开启 MCP');
+  const share = el('button', '共享当前终端');
+  const revoke = el('button', '撤回授权');
+  el('small', '仅共享一个终端 · 授权 24 小时 · 自动批准已开启');
+  const info = el('p', '凭证始终留在 Termius 内。终端输出仍可能包含敏感信息。');
   const requestBox = el('div'); requestBox.id = 'request'; requestBox.hidden = true;
   const requestTitle = el('p', '', requestBox);
-  const preview = el('textarea', '', requestBox); preview.setAttribute('aria-label', 'Review request'); preview.spellcheck = false;
+  const preview = el('textarea', '', requestBox); preview.setAttribute('aria-label', '审核请求内容'); preview.spellcheck = false;
   const label = el('label', '', requestBox);
-  const check = el('input', '', label); check.type = 'checkbox'; label.append(document.createTextNode(' I reviewed the entire request'));
-  const accept = el('button', 'Approve once', requestBox);
-  const deny = el('button', 'Deny', requestBox); deny.className = 'danger';
+  const check = el('input', '', label); check.type = 'checkbox'; label.append(document.createTextNode(' 我已审核全部内容'));
+  const accept = el('button', '批准本次', requestBox);
+  const deny = el('button', '拒绝', requestBox); deny.className = 'danger';
   document.body.append(host);
   let displayed = null, policy;
 
@@ -86,10 +87,10 @@ export function installRenderer(createPolicy, bridgeKey) {
     if (!policy) return;
     // Avoid recursive tick/status notifications.
     const s = policy.status();
-    status.textContent = !s.enabled ? 'MCP is off' : s.shared ? 'MCP on · one terminal shared' : 'MCP on · no terminal shared';
-    launcherLabel.textContent = s.pending ? 'MCP · Review' : s.enabled ? 'MCP · On' : 'MCP · Off';
+    status.textContent = !s.enabled ? 'MCP 已关闭' : s.shared ? 'MCP 已开启 · 已共享一个终端' : 'MCP 已开启 · 尚未共享终端';
+    launcherLabel.textContent = s.pending ? 'MCP · 待审批' : s.enabled ? 'MCP · 开启' : 'MCP · 关闭';
     dot.setAttribute('data-state', s.pending ? 'pending' : s.enabled ? 'on' : 'off');
-    toggle.textContent = s.enabled ? 'Turn MCP off' : 'Turn MCP on';
+    toggle.textContent = s.enabled ? '关闭 MCP' : '开启 MCP';
     toggle.className = s.enabled ? 'danger' : '';
     share.disabled = !s.enabled; revoke.disabled = !s.shared;
     if (!s.pending) { displayed = null; preview.value = ''; requestBox.hidden = true; check.checked = false; }
@@ -98,35 +99,54 @@ export function installRenderer(createPolicy, bridgeKey) {
   policy = createPolicy({
     now: () => Date.now(), randomId: () => crypto.randomUUID(), changed: () => queueMicrotask(update), valid,
     subscribe(t, cb) {
-      const sub = t.m._onShellOutput.event(cb);
-      if (!sub || typeof sub.dispose !== 'function') throw new Error('No disposable output subscription');
-      const listeners = [sub];
-      const dispose = () => { for (const l of listeners) { try { l?.dispose(); } catch {} } };
+      // Local patch: Termius 10.x event APIs may hand back a plain unsubscribe
+      // function instead of a { dispose() } object. Accept both forms.
+      const asDisposer = x => {
+        if (typeof x === 'function') return x;
+        if (x && typeof x.dispose === 'function') return () => x.dispose();
+        return null;
+      };
+      const disposers = [];
+      const dispose = () => { for (const d of disposers) { try { d(); } catch {} } };
+      const need = (label, returned) => {
+        const d = asDisposer(returned);
+        if (!d) throw new Error(label + ' gave no disposer (got ' + (returned === null ? 'null' : typeof returned) + ')');
+        disposers.push(d);
+      };
       try {
-        for (const name of ['_onDisconnect', '_onExit']) {
-          if (typeof t.m[name]?.event !== 'function') throw new Error('Disconnect lifecycle is unsupported');
-          const listener = t.m[name].event(() => policy.revoke());
-          if (!listener || typeof listener.dispose !== 'function') throw new Error('Disconnect lifecycle is unsupported');
-          listeners.push(listener);
-        }
+        if (typeof t.m?._onShellOutput?.event !== 'function') throw new Error('_onShellOutput.event is missing');
+        need('_onShellOutput.event', t.m._onShellOutput.event(cb));
+        if (typeof t.m?._onDisconnect?.event !== 'function') throw new Error('_onDisconnect.event is missing');
+        need('_onDisconnect.event', t.m._onDisconnect.event(() => policy.revoke()));
+        // Local patch: Termius 10.x dropped _onExit. A closed shell is still caught by
+        // the _currentConnection identity check inside valid(), so this is best-effort.
+        try {
+          for (const name of ['_onExit', '_onExitShell', '_onClose', 'onExit']) {
+            if (typeof t.m?.[name]?.event === 'function') {
+              const d = asDisposer(t.m[name].event(() => policy.revoke()));
+              if (d) { disposers.push(d); break; }
+            }
+          }
+        } catch {}
       } catch (e) { dispose(); throw e; }
       return dispose;
     },
     send(t, text) { t.shell.sendData(text); },
+    autoApprove: true,
     approve(r) {
       showPanel(true);
       displayed = r; requestBox.hidden = false; check.checked = false;
-      requestTitle.textContent = r.kind === 'write' ? 'Send this exact text to the shared terminal? Newlines may execute commands.' : 'Release this output to the AI? Remove any secrets below before approving.';
+      requestTitle.textContent = r.kind === 'write' ? '把以下文本原样发送到共享终端？换行可能直接执行命令。' : '把以下输出释放给 AI？请先删除其中的敏感内容。';
       // Escape controls visually on reads. Do not let terminal escape sequences spoof the review.
       preview.value = r.kind === 'write' ? r.text : r.text.replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/gu, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
       preview.maxLength = 8192; preview.readOnly = r.kind === 'write';
-      info.textContent = r.truncated ? 'Output was limited. Only the text shown here can be released.' : 'Approval expires in 30 seconds. Switching tabs revokes access.';
+      info.textContent = r.truncated ? '输出已被截断，只能释放此处显示的内容。' : '审批 30 秒后失效。切换标签页会立即撤销授权。';
     }
   });
   toggle.addEventListener('click', e => { if (!e.isTrusted) return; if (policy.status().enabled) policy.disable(); else policy.enable(true); });
   share.addEventListener('click', e => {
     if (!e.isTrusted) return;
-    try { const t = selected(); if (!t) throw new Error('Focus one terminal. Split panes and unsupported versions are refused.'); policy.share(t, true); info.textContent = 'Sharing starts now. Earlier scrollback is never collected.'; }
+    try { const t = selected(); if (!t) throw new Error('请聚焦一个终端。分屏或不受支持的版本会被拒绝。'); policy.share(t, true); info.textContent = '已开始共享。更早的历史输出不会被采集。'; }
     catch (error) { info.textContent = error.message; }
   });
   revoke.addEventListener('click', e => { if (e.isTrusted) policy.revoke(); });
