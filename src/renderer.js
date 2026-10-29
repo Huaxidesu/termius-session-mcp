@@ -43,7 +43,9 @@ export function installRenderer(createPolicy, bridgeKey) {
   const toggle = el('button', '开启 MCP');
   const share = el('button', '共享当前终端');
   const revoke = el('button', '撤回授权');
-  el('small', '仅共享一个终端 · 授权 24 小时 · 自动批准已开启');
+  const autoBtn = el('button', '自动批准：开');
+  autoBtn.title = '关闭后，每次写入与每次读取都需要在本面板手动批准';
+  el('small', '仅共享一个终端 · 授权 24 小时 · 自动批准可随时切换');
   const info = el('p', '凭证始终留在 Termius 内。终端输出仍可能包含敏感信息。');
   const requestBox = el('div'); requestBox.id = 'request'; requestBox.hidden = true;
   const requestTitle = el('p', '', requestBox);
@@ -79,7 +81,9 @@ export function installRenderer(createPolicy, bridgeKey) {
     return { m, element: candidates[0], connection: m._currentConnection, shell: m.shell };
   }
   function valid(t) {
-    if (document.visibilityState !== 'visible' || !host.isConnected) return false;
+    // 本 fork 去掉了「文档不可见即失效」的限制：窗口被其它窗口完全遮挡时
+    // 用户通常正在与 AI 对话，若仍在此处 fail-closed 会导致共享频繁中断。
+    if (!host.isConnected) return false;
     const s = selected();
     return !!s && s.m === t.m && s.element === t.element && s.connection === t.connection && s.shell === t.shell;
   }
@@ -91,6 +95,8 @@ export function installRenderer(createPolicy, bridgeKey) {
     launcherLabel.textContent = s.pending ? 'MCP · 待审批' : s.enabled ? 'MCP · 开启' : 'MCP · 关闭';
     dot.setAttribute('data-state', s.pending ? 'pending' : s.enabled ? 'on' : 'off');
     toggle.textContent = s.enabled ? '关闭 MCP' : '开启 MCP';
+    autoBtn.textContent = s.autoApprove ? '自动批准：开' : '自动批准：关';
+    autoBtn.setAttribute('aria-pressed', String(!!s.autoApprove));
     toggle.className = s.enabled ? 'danger' : '';
     share.disabled = !s.enabled; revoke.disabled = !s.shared;
     if (!s.pending) { displayed = null; preview.value = ''; requestBox.hidden = true; check.checked = false; }
@@ -150,15 +156,15 @@ export function installRenderer(createPolicy, bridgeKey) {
     catch (error) { info.textContent = error.message; }
   });
   revoke.addEventListener('click', e => { if (e.isTrusted) policy.revoke(); });
+  autoBtn.addEventListener('click', e => { if (e.isTrusted) policy.setAutoApprove(!policy.status().autoApprove); });
   check.addEventListener('change', e => { if (!e.isTrusted) check.checked = false; update(); });
   accept.addEventListener('click', e => {
     if (!e.isTrusted || !check.checked || !displayed || !document.hasFocus()) return;
     policy.decide(displayed.id, true, true, preview.value);
   });
   deny.addEventListener('click', e => { if (e.isTrusted && displayed) policy.decide(displayed.id, false, true); });
-  // A backgrounded/minimized app drops the grant and any pending work.
-  const hide = () => { if (document.visibilityState !== 'visible') policy.disable(); };
-  document.addEventListener('visibilitychange', hide);
+  // 本 fork 移除了 visibilitychange 自动撤销：最小化或遮挡不再吊销授权。
+  // 仍然保留 pagehide（窗口真正卸载）时的吊销，见下方监听。
   let positionTicks = 0;
   position(); window.addEventListener('resize', position);
   const timer = setInterval(() => { policy.tick(); if (!host.isConnected) policy.disable(); if (++positionTicks % 8 === 0) position(); }, 250);

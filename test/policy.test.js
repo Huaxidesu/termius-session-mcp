@@ -10,7 +10,7 @@ function fixture() {
   return { p, target, writes, approvals, advance(n) { time += n; }, invalidate() { good = false; }, emit(s) { callback?.(s); }, get disposed() { return disposed; }, grant() { p.enable(true); return p.share(target, true); } };
 }
 test('off by default; remote/synthetic enable and share refused', () => {
-  const f = fixture(); assert.deepEqual(f.p.status(), { enabled: false, shared: false, pending: false });
+  const f = fixture(); assert.deepEqual(f.p.status(), { enabled: false, shared: false, pending: false, autoApprove: false });
   assert.throws(() => f.p.enable(false)); assert.throws(() => f.p.share(f.target, false));
   assert.throws(() => f.p.request('write', { session: 'anything', text: 'echo' }));
 });
@@ -56,4 +56,16 @@ test('output is bounded and session expires after 24 hours', async () => {
   const f = fixture(), id = f.grant(); f.emit('x'.repeat(100000)); const r = f.p.request('read', { session: id });
   assert.equal(f.approvals[0].text.length, 8192); assert.equal(f.approvals[0].truncated, true); f.p.disable(); await assert.rejects(r);
   f.grant(); f.advance(86_400_001); f.p.tick(); assert.deepEqual(f.p.sessions(), []);
+});
+test('auto-approve toggle switches between immediate execution and manual approval', async () => {
+  const f = fixture(), id = f.grant();
+  assert.equal(f.p.status().autoApprove, false);
+  f.p.setAutoApprove(true); assert.equal(f.p.status().autoApprove, true);
+  const r1 = f.p.request('write', { session: id, text: 'echo auto' });
+  assert.deepEqual(await r1, { sent: true, auto: true });
+  assert.equal(f.writes.length, 1); assert.equal(f.approvals.length, 0);
+  f.p.setAutoApprove(false); assert.equal(f.p.status().autoApprove, false);
+  const r2 = f.p.request('write', { session: id, text: 'echo manual' });
+  assert.equal(f.writes.length, 1); assert.equal(f.approvals.length, 1);
+  f.p.decide(f.approvals[0].id, true, true); await r2; assert.equal(f.writes.length, 2);
 });

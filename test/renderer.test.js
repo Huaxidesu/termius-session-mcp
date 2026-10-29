@@ -50,3 +50,21 @@ test('renderer revokes when same terminal gets a new connection object', async (
   const f = fixture(); f.button('开启 MCP').event('click'); await flush(); f.button('共享当前终端').event('click'); await flush();
   f.mediator._currentConnection = {}; f.tick(); await flush(); assert.equal((await f.call('sessions')).length, 0); assert.equal(f.outputHandlers.size, 0);
 });
+test('renderer keeps the grant when the document is hidden or occluded', async () => {
+  const f = fixture(); f.button('开启 MCP').event('click'); await flush(); f.button('共享当前终端').event('click'); await flush();
+  f.document.visibilityState = 'hidden'; f.tick(); await flush();
+  assert.equal((await f.call('sessions')).length, 1); assert.equal(f.outputHandlers.size, 1);
+  assert.equal((await f.call('status')).shared, true);
+});
+test('renderer auto-approve button switches back to manual approval', async () => {
+  const f = fixture(); f.button('开启 MCP').event('click'); await flush(); f.button('共享当前终端').event('click'); await flush();
+  const [s] = await f.call('sessions');
+  assert.equal(f.button('自动批准：开').textContent, '自动批准：开');
+  f.button('自动批准：开').event('click'); await flush();
+  assert.equal(f.button('自动批准：关').textContent, '自动批准：关');
+  const pending = f.call('write', { session: s.id, text: 'echo manual\n' }).catch(() => {});
+  await flush(); assert.equal(f.writes.length, 0);
+  f.button('自动批准：关').event('click'); await flush();
+  assert.equal(f.button('自动批准：开').textContent, '自动批准：开');
+  await f.call('disable'); await pending;
+});

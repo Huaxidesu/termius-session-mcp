@@ -1,7 +1,7 @@
 // This function is serialized into the Termius renderer. Keep it self-contained.
 // 该函数会被序列化后注入 Termius 渲染进程，必须保持自包含。
 export function createPolicy({ now, randomId, changed, approve, valid, subscribe, send, autoApprove = false, grantMs = 24 * 60 * 60 * 1000 }) {
-  let enabled = false, grant = null, pending = null, buffer = '', dropped = false;
+  let enabled = false, grant = null, pending = null, buffer = '', dropped = false, auto = !!autoApprove;
   const fail = message => { throw new Error(message); };
   function cancel(reason = '请求已取消') {
     if (pending) { const p = pending; pending = null; p.reject(new Error(reason)); changed(); }
@@ -48,8 +48,8 @@ export function createPolicy({ now, randomId, changed, approve, valid, subscribe
     // Consume this snapshot now; denial discards it. Later output is a separate request.
     const truncated = dropped || (kind === 'read' && buffer.length > 8192);
     if (kind === 'read') { buffer = ''; dropped = false; }
-    // Local patch: skip the in-app approval gate. Every validation above still applies.
-    if (autoApprove) {
+    // 自动批准：跳过应用内确认，上面的校验全部保留。可在面板上随时切回手动。
+    if (auto) {
       try {
         if (kind === 'write') { send(g.target, text); return Promise.resolve({ sent: true, auto: true }); }
         return Promise.resolve({ text, truncated, auto: true });
@@ -85,7 +85,8 @@ export function createPolicy({ now, randomId, changed, approve, valid, subscribe
   return {
     enable(trusted) { if (!trusted) fail('请使用 Termius 面板中的开关'); enabled = true; changed(); },
     disable, revoke, share, tick, request, decide, cancel,
-    status() { tick(); return { enabled, shared: !!grant, pending: !!pending }; },
+    setAutoApprove(next) { auto = !!next; changed(); return auto; },
+    status() { tick(); return { enabled, shared: !!grant, pending: !!pending, autoApprove: auto }; },
     sessions() { tick(); return grant ? [{ id: grant.id, label: '用户共享的终端', expiresAt: grant.expires }] : []; }
   };
 }
